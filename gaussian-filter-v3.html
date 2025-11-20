@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가우시안 필터 시각화 v3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: white;
+            padding: 15px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .top-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-input-button {
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            display: inline-block;
+            font-weight: 600;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+
+        .sigma-control {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sigma-control label {
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        .sigma-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sigma-btn {
+            padding: 8px 15px;
+            border: 2px solid #666;
+            background: white;
+            color: #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85em;
+            transition: all 0.3s;
+        }
+
+        .sigma-btn.active {
+            background: #333;
+            color: white;
+            border-color: #333;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #333;
+            cursor: pointer;
+        }
+
+        .sigma-value {
+            font-weight: 700;
+            color: #333;
+            font-size: 1.1em;
+            min-width: 50px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 12px;
+            height: fit-content;
+        }
+
+        .panel h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+
+        #originalCanvas, #filteredCanvas {
+            cursor: crosshair;
+        }
+
+        .visualization-panel {
+            display: grid;
+            grid-template-rows: auto auto;
+            gap: 10px;
+        }
+
+        .viz-canvas {
+            background: white;
+            border: 2px solid #666;
+            border-radius: 8px;
+        }
+
+        #kernelViz {
+            height: 200px;
+        }
+
+        #weightBars {
+            height: 150px;
+        }
+
+        .info-compact {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .info-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .instruction {
+            background: #f5f5f5;
+            border: 2px solid #999;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .rgb-comparison {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .rgb-box {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .rgb-box.before {
+            background: #f0f0f0;
+            border: 2px solid #666;
+        }
+
+        .rgb-box.after {
+            background: #e5e5e5;
+            border: 2px solid #333;
+        }
+
+        .rgb-box strong {
+            display: block;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+
+        .rgb-box .value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .color-preview {
+            width: 100%;
+            height: 30px;
+            border-radius: 5px;
+            margin-top: 5px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 1400px) {
+            .main-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            .top-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>가우시안 필터 시각화</h1>
+        
+        <div class="top-controls">
+            <div class="file-input-wrapper">
+                <label class="file-input-button" for="imageUpload">
+                    이미지 선택
+                </label>
+                <input type="file" id="imageUpload" accept="image/*">
+            </div>
+
+            <div class="sigma-control">
+                <label>σ:</label>
+                <div class="sigma-buttons">
+                    <button class="sigma-btn active" data-sigma="0.5">0.5</button>
+                    <button class="sigma-btn" data-sigma="1.0">1.0</button>
+                    <button class="sigma-btn" data-sigma="2.0">2.0</button>
+                    <button class="sigma-btn" data-sigma="4.0">4.0</button>
+                    <button class="sigma-btn" data-sigma="8.0">8.0</button>
+                </div>
+                <input type="range" id="sigmaSlider" min="0.1" max="10" step="0.1" value="0.5">
+                <span class="sigma-value"><span id="sigmaDisplay">0.5</span></span>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="panel">
+                <h3>원본 이미지</h3>
+                <canvas id="originalCanvas"></canvas>
+            </div>
+
+            <div class="panel">
+                <h3>필터 적용 결과</h3>
+                <canvas id="filteredCanvas"></canvas>
+            </div>
+
+            <div class="panel visualization-panel">
+                <div>
+                    <h3>가우시안 커널 (3D)</h3>
+                    <canvas id="kernelViz" class="viz-canvas"></canvas>
+                </div>
+                <div>
+                    <h3>거리별 가중치</h3>
+                    <canvas id="weightBars" class="viz-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>클릭한 픽셀 분석</h3>
+            <div class="rgb-comparison">
+                <div class="rgb-box before">
+                    <strong>필터 적용 전</strong>
+                    <div class="value" id="beforeRGB">클릭하세요</div>
+                    <div class="color-preview" id="beforeColor"></div>
+                </div>
+                <div class="rgb-box after">
+                    <strong>필터 적용 후</strong>
+                    <div class="value" id="afterRGB">클릭하세요</div>
+                    <div class="color-preview" id="afterColor"></div>
+                </div>
+            </div>
+            <div class="info-compact">
+                <div class="info-row">
+                    <span class="info-label">클릭 위치</span>
+                    <span class="info-value" id="position">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">커널 크기</span>
+                    <span class="info-value" id="kernelSize">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">영향 반경 (3σ)</span>
+                    <span class="info-value" id="radius">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">평균 변화량</span>
+                    <span class="info-value" id="change">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const filteredCanvas = document.getElementById('filteredCanvas');
+        const kernelViz = document.getElementById('kernelViz');
+        const weightBars = document.getElementById('weightBars');
+        const sigmaSlider = document.getElementById('sigmaSlider');
+        const sigmaDisplay = document.getElementById('sigmaDisplay');
+        const sigmaButtons = document.querySelectorAll('.sigma-btn');
+
+        const originalCtx = originalCanvas.getContext('2d');
+        const filteredCtx = filteredCanvas.getContext('2d');
+        const kernelCtx = kernelViz.getContext('2d');
+        const barsCtx = weightBars.getContext('2d');
+
+        let originalImageData = null;
+        let filteredImageData = null;
+        let currentSigma = 0.5;
+        let currentKernel = null;
+
+        // 시그마 버튼 이벤트
+        sigmaButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sigmaButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const sigma = parseFloat(btn.dataset.sigma);
+                sigmaSlider.value = sigma;
+                sigmaDisplay.textContent = sigma.toFixed(1);
+                currentSigma = sigma;
+                if (originalImageData) {
+                    applyGaussianFilter();
+                    drawKernelVisualization();
+                }
+            });
+        });
+
+        // 슬라이더 이벤트
+        sigmaSlider.addEventListener('input', (e) => {
+            currentSigma = parseFloat(e.target.value);
+            sigmaDisplay.textContent = currentSigma.toFixed(1);
+            sigmaButtons.forEach(b => b.classList.remove('active'));
+            if (originalImageData) {
+                applyGaussianFilter();
+                drawKernelVisualization();
+            }
+        });
+
+        // 이미지 업로드
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const maxWidth = 450;
+                        const scale = Math.min(1, maxWidth / img.width);
+                        const width = img.width * scale;
+                        const height = img.height * scale;
+
+                        originalCanvas.width = width;
+                        originalCanvas.height = height;
+                        filteredCanvas.width = width;
+                        filteredCanvas.height = height;
+
+                        originalCtx.drawImage(img, 0, 0, width, height);
+                        originalImageData = originalCtx.getImageData(0, 0, width, height);
+
+                        applyGaussianFilter();
+                        drawKernelVisualization();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 가우시안 커널 생성
+        function createGaussianKernel(sigma) {
+            const size = Math.ceil(sigma * 6) | 1;
+            const kernel = [];
+            const center = Math.floor(size / 2);
+            let sum = 0;
+
+            for (let y = 0; y < size; y++) {
+                kernel[y] = [];
+                for (let x = 0; x < size; x++) {
+                    const dx = x - center;
+                    const dy = y - center;
+                    const value = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+                    kernel[y][x] = value;
+                    sum += value;
+                }
+            }
+
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    kernel[y][x] /= sum;
+                }
+            }
+
+            return kernel;
+        }
+
+        // 가우시안 필터 적용
+        function applyGaussianFilter() {
+            currentKernel = createGaussianKernel(currentSigma);
+            const kernelSize = currentKernel.length;
+            const halfSize = Math.floor(kernelSize / 2);
+
+            const width = originalCanvas.width;
+            const height = originalCanvas.height;
+            const input = originalImageData.data;
+            const output = new Uint8ClampedArray(input.length);
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let r = 0, g = 0, b = 0;
+
+                    for (let ky = 0; ky < kernelSize; ky++) {
+                        for (let kx = 0; kx < kernelSize; kx++) {
+                            const px = Math.min(Math.max(x + kx - halfSize, 0), width - 1);
+                            const py = Math.min(Math.max(y + ky - halfSize, 0), height - 1);
+                            const idx = (py * width + px) * 4;
+                            const weight = currentKernel[ky][kx];
+
+                            r += input[idx] * weight;
+                            g += input[idx + 1] * weight;
+                            b += input[idx + 2] * weight;
+                        }
+                    }
+
+                    const idx = (y * width + x) * 4;
+                    output[idx] = r;
+                    output[idx + 1] = g;
+                    output[idx + 2] = b;
+                    output[idx + 3] = 255;
+                }
+            }
+
+            filteredImageData = new ImageData(output, width, height);
+            filteredCtx.putImageData(filteredImageData, 0, 0);
+        }
+
+        // 커널 시각화 (3D 효과)
+        function drawKernelVisualization() {
+            if (!currentKernel) {
+                currentKernel = createGaussianKernel(currentSigma);
+            }
+            
+            const width = kernelViz.width;
+            const height = kernelViz.height;
+            kernelCtx.clearRect(0, 0, width, height);
+
+            const kernelSize = currentKernel.length;
+            const center = Math.floor(kernelSize / 2);
+            const maxWeight = currentKernel[center][center];
+
+            // 배경
+            kernelCtx.fillStyle = '#f8f9fa';
+            kernelCtx.fillRect(0, 0, width, height);
+
+            // 3D 가우시안 곡선 그리기
+            const samples = 100;
+            const scale = width / (kernelSize + 2);
+            
+            kernelCtx.strokeStyle = '#333';
+            kernelCtx.lineWidth = 2;
+            kernelCtx.beginPath();
+
+            for (let i = 0; i <= samples; i++) {
+                const x = (i / samples) * kernelSize - center;
+                const weight = Math.exp(-(x * x) / (2 * currentSigma * currentSigma));
+                const normalized = weight / maxWeight;
+
+                const screenX = (x + center + 1) * scale;
+                const screenY = height - normalized * (height - 40) - 20;
+
+                if (i === 0) {
+                    kernelCtx.moveTo(screenX, screenY);
+                } else {
+                    kernelCtx.lineTo(screenX, screenY);
+                }
+            }
+            kernelCtx.stroke();
+
+            // 영역 채우기
+            kernelCtx.lineTo(width, height - 20);
+            kernelCtx.lineTo(scale, height - 20);
+            kernelCtx.closePath();
+            kernelCtx.fillStyle = 'rgba(100, 100, 100, 0.2)';
+            kernelCtx.fill();
+
+            // 중심선
+            kernelCtx.strokeStyle = '#666';
+            kernelCtx.setLineDash([5, 5]);
+            kernelCtx.beginPath();
+            kernelCtx.moveTo((center + 1) * scale, 20);
+            kernelCtx.lineTo((center + 1) * scale, height - 20);
+            kernelCtx.stroke();
+            kernelCtx.setLineDash([]);
+
+            // 레이블
+            kernelCtx.fillStyle = '#333';
+            kernelCtx.font = 'bold 12px sans-serif';
+            kernelCtx.textAlign = 'center';
+            kernelCtx.fillText('중심', (center + 1) * scale, 15);
+            kernelCtx.fillText(`-${center}`, scale, height - 5);
+            kernelCtx.fillText('0', (center + 1) * scale, height - 5);
+            kernelCtx.fillText(`+${center}`, width - scale, height - 5);
+        }
+
+        // 거리별 가중치 막대 그래프
+        function drawWeightBars(clickX, clickY) {
+            if (!currentKernel) return;
+            
+            const width = weightBars.width;
+            const height = weightBars.height;
+            barsCtx.clearRect(0, 0, width, height);
+
+            barsCtx.fillStyle = '#f8f9fa';
+            barsCtx.fillRect(0, 0, width, height);
+
+            const kernelSize = currentKernel.length;
+            const center = Math.floor(kernelSize / 2);
+
+            // 거리별 가중치 계산
+            const distanceWeights = new Map();
+            for (let ky = 0; ky < kernelSize; ky++) {
+                for (let kx = 0; kx < kernelSize; kx++) {
+                    const dx = kx - center;
+                    const dy = ky - center;
+                    const distance = Math.round(Math.sqrt(dx * dx + dy * dy));
+                    const weight = currentKernel[ky][kx];
+                    
+                    if (!distanceWeights.has(distance)) {
+                        distanceWeights.set(distance, []);
+                    }
+                    distanceWeights.get(distance).push(weight);
+                }
+            }
+
+            // 평균 가중치 계산
+            const distances = Array.from(distanceWeights.keys()).sort((a, b) => a - b);
+            const avgWeights = distances.map(d => {
+                const weights = distanceWeights.get(d);
+                return weights.reduce((a, b) => a + b, 0) / weights.length;
+            });
+
+            const maxWeight = Math.max(...avgWeights);
+            const barWidth = width / (distances.length + 1);
+            const maxBarHeight = height - 50;
+
+            distances.forEach((dist, i) => {
+                const avgWeight = avgWeights[i];
+                const barHeight = (avgWeight / maxWeight) * maxBarHeight;
+                const x = (i + 0.5) * barWidth;
+                const y = height - 30 - barHeight;
+
+                // 그라데이션 바
+                const gradient = barsCtx.createLinearGradient(x, y, x, height - 30);
+                gradient.addColorStop(0, '#555');
+                gradient.addColorStop(1, '#333');
+                
+                barsCtx.fillStyle = gradient;
+                barsCtx.fillRect(x - barWidth * 0.3, y, barWidth * 0.6, barHeight);
+
+                // 거리 레이블
+                barsCtx.fillStyle = '#333';
+                barsCtx.font = '11px sans-serif';
+                barsCtx.textAlign = 'center';
+                barsCtx.fillText(dist + 'px', x, height - 15);
+
+                // 가중치 레이블
+                if (avgWeight > maxWeight * 0.1) {
+                    barsCtx.fillStyle = '#fff';
+                    barsCtx.font = 'bold 10px sans-serif';
+                    barsCtx.fillText((avgWeight * 100).toFixed(0) + '%', x, y - 5);
+                }
+            });
+
+            // 제목
+            barsCtx.fillStyle = '#333';
+            barsCtx.font = 'bold 12px sans-serif';
+            barsCtx.textAlign = 'left';
+            barsCtx.fillText('중심으로부터의 거리 (픽셀)', 10, 15);
+        }
+
+        // 픽셀 정보 업데이트
+        function updatePixelInfo(x, y) {
+            if (!currentKernel || !filteredImageData) return;
+            
+            const width = originalCanvas.width;
+            const input = originalImageData.data;
+            const output = filteredImageData.data;
+            const idx = (y * width + x) * 4;
+
+            const beforeR = input[idx];
+            const beforeG = input[idx + 1];
+            const beforeB = input[idx + 2];
+
+            const afterR = Math.round(output[idx]);
+            const afterG = Math.round(output[idx + 1]);
+            const afterB = Math.round(output[idx + 2]);
+
+            document.getElementById('beforeRGB').textContent = `RGB(${beforeR}, ${beforeG}, ${beforeB})`;
+            document.getElementById('afterRGB').textContent = `RGB(${afterR}, ${afterG}, ${afterB})`;
+            
+            document.getElementById('beforeColor').style.backgroundColor = `rgb(${beforeR}, ${beforeG}, ${beforeB})`;
+            document.getElementById('afterColor').style.backgroundColor = `rgb(${afterR}, ${afterG}, ${afterB})`;
+
+            document.getElementById('position').textContent = `(${x}, ${y})`;
+            document.getElementById('kernelSize').textContent = `${currentKernel.length} × ${currentKernel.length}`;
+            document.getElementById('radius').textContent = `약 ${Math.ceil(currentSigma * 3)} 픽셀`;
+            
+            const change = Math.abs(beforeR - afterR) + Math.abs(beforeG - afterG) + Math.abs(beforeB - afterB);
+            document.getElementById('change').textContent = `${change.toFixed(0)} (${(change / 7.65).toFixed(1)}%)`;
+
+            drawWeightBars(x, y);
+        }
+
+        // 캔버스 클릭 이벤트
+        function handleCanvasClick(e, canvas) {
+            if (!originalImageData) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+            const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+            updatePixelInfo(x, y);
+        }
+
+        originalCanvas.addEventListener('click', (e) => handleCanvasClick(e, originalCanvas));
+        filteredCanvas.addEventListener('click', (e) => handleCanvasClick(e, filteredCanvas));
+
+        // 초기 커널 시각화
+        drawKernelVisualization();
+    </script>
+</body>
+</html>
