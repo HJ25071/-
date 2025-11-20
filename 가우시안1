@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가우시안 필터 시각화 v2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .upload-section {
+            margin-bottom: 20px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-input-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            display: inline-block;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        .file-input-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .sigma-control {
+            margin-top: 20px;
+        }
+
+        .sigma-control label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .sigma-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .sigma-btn {
+            flex: 1;
+            min-width: 80px;
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .sigma-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .sigma-btn:hover {
+            background: #f0f0ff;
+        }
+
+        .sigma-btn.active:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 8px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+            border: none;
+        }
+
+        .sigma-value {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 1.2em;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 15px;
+        }
+
+        .canvas-wrapper h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+
+        #originalCanvas, #filteredCanvas {
+            cursor: crosshair;
+            border: 2px solid #ddd;
+        }
+
+        .magnified-view {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .magnified-view h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .magnified-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .magnified-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .magnified-panel h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }
+
+        #magnifiedCanvas {
+            border: 2px solid #667eea;
+            image-rendering: pixelated;
+            width: 100%;
+            height: auto;
+        }
+
+        .pixel-info {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .pixel-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-box strong {
+            color: #333;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .rgb-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            color: #666;
+        }
+
+        .weight-grid {
+            display: inline-grid;
+            gap: 2px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75em;
+        }
+
+        .weight-cell {
+            background: #f0f0f0;
+            padding: 4px 6px;
+            text-align: center;
+            border-radius: 3px;
+            min-width: 50px;
+        }
+
+        .weight-cell.center {
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+
+        .instruction {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            color: #856404;
+            font-weight: 500;
+        }
+
+        .calculation-box {
+            background: #e7f3ff;
+            border: 2px solid #2196F3;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        .calculation-box strong {
+            color: #1976D2;
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+            .magnified-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 가우시안 필터 시각화 (확대 뷰)</h1>
+        
+        <div class="instruction">
+            💡 이미지를 업로드한 후, 원본 또는 필터링된 이미지를 클릭하면 해당 영역을 확대하여 가우시안 가중치와 계산 과정을 볼 수 있습니다!
+        </div>
+
+        <div class="controls">
+            <div class="upload-section">
+                <div class="file-input-wrapper">
+                    <label class="file-input-button" for="imageUpload">
+                        📁 이미지 선택하기
+                    </label>
+                    <input type="file" id="imageUpload" accept="image/*">
+                </div>
+            </div>
+
+            <div class="sigma-control">
+                <label>σ (시그마) 값 선택:</label>
+                <div class="sigma-buttons">
+                    <button class="sigma-btn active" data-sigma="0.5">σ = 0.5</button>
+                    <button class="sigma-btn" data-sigma="1.0">σ = 1.0</button>
+                    <button class="sigma-btn" data-sigma="2.0">σ = 2.0</button>
+                    <button class="sigma-btn" data-sigma="4.0">σ = 4.0</button>
+                    <button class="sigma-btn" data-sigma="8.0">σ = 8.0</button>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="sigmaSlider" min="0.1" max="10" step="0.1" value="0.5">
+                    <span class="sigma-value">σ = <span id="sigmaDisplay">0.5</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <div class="canvas-wrapper">
+                <h3>원본 이미지</h3>
+                <canvas id="originalCanvas"></canvas>
+            </div>
+            <div class="canvas-wrapper">
+                <h3>가우시안 필터 적용</h3>
+                <canvas id="filteredCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="magnified-view" id="magnifiedView" style="display: none;">
+            <h3>🔍 확대된 로컬 뷰</h3>
+            <div class="magnified-container">
+                <div class="magnified-panel">
+                    <h4>필터 적용 전 (확대)</h4>
+                    <canvas id="magnifiedCanvas"></canvas>
+                </div>
+                <div class="magnified-panel">
+                    <h4>가우시안 가중치 그리드</h4>
+                    <div id="weightGrid"></div>
+                </div>
+            </div>
+
+            <div class="pixel-info">
+                <h4>📊 중심 픽셀 분석</h4>
+                <div class="pixel-info-grid">
+                    <div class="info-box">
+                        <strong>필터 적용 전</strong>
+                        <div class="rgb-value" id="beforeRGB">-</div>
+                    </div>
+                    <div class="info-box">
+                        <strong>필터 적용 후</strong>
+                        <div class="rgb-value" id="afterRGB">-</div>
+                    </div>
+                </div>
+                <div class="calculation-box" id="calculationBox">
+                    클릭하여 계산 과정을 확인하세요.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const filteredCanvas = document.getElementById('filteredCanvas');
+        const magnifiedCanvas = document.getElementById('magnifiedCanvas');
+        const sigmaSlider = document.getElementById('sigmaSlider');
+        const sigmaDisplay = document.getElementById('sigmaDisplay');
+        const sigmaButtons = document.querySelectorAll('.sigma-btn');
+        const magnifiedView = document.getElementById('magnifiedView');
+        const weightGrid = document.getElementById('weightGrid');
+        const beforeRGB = document.getElementById('beforeRGB');
+        const afterRGB = document.getElementById('afterRGB');
+        const calculationBox = document.getElementById('calculationBox');
+
+        const originalCtx = originalCanvas.getContext('2d');
+        const filteredCtx = filteredCanvas.getContext('2d');
+        const magnifiedCtx = magnifiedCanvas.getContext('2d');
+
+        let originalImageData = null;
+        let filteredImageData = null;
+        let currentSigma = 0.5;
+        let currentKernel = null;
+
+        // 시그마 버튼 이벤트
+        sigmaButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sigmaButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const sigma = parseFloat(btn.dataset.sigma);
+                sigmaSlider.value = sigma;
+                sigmaDisplay.textContent = sigma.toFixed(1);
+                currentSigma = sigma;
+                if (originalImageData) {
+                    applyGaussianFilter();
+                }
+            });
+        });
+
+        // 슬라이더 이벤트
+        sigmaSlider.addEventListener('input', (e) => {
+            currentSigma = parseFloat(e.target.value);
+            sigmaDisplay.textContent = currentSigma.toFixed(1);
+            sigmaButtons.forEach(b => b.classList.remove('active'));
+            if (originalImageData) {
+                applyGaussianFilter();
+            }
+        });
+
+        // 이미지 업로드
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // 캔버스 크기 조정
+                        const maxWidth = 700;
+                        const scale = Math.min(1, maxWidth / img.width);
+                        const width = img.width * scale;
+                        const height = img.height * scale;
+
+                        originalCanvas.width = width;
+                        originalCanvas.height = height;
+                        filteredCanvas.width = width;
+                        filteredCanvas.height = height;
+
+                        // 원본 그리기
+                        originalCtx.drawImage(img, 0, 0, width, height);
+                        originalImageData = originalCtx.getImageData(0, 0, width, height);
+
+                        // 필터 적용
+                        applyGaussianFilter();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 가우시안 커널 생성
+        function createGaussianKernel(sigma) {
+            const size = Math.ceil(sigma * 6) | 1;
+            if (size % 2 === 0) size++;
+            const kernel = [];
+            const center = Math.floor(size / 2);
+            let sum = 0;
+
+            for (let y = 0; y < size; y++) {
+                kernel[y] = [];
+                for (let x = 0; x < size; x++) {
+                    const dx = x - center;
+                    const dy = y - center;
+                    const value = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+                    kernel[y][x] = value;
+                    sum += value;
+                }
+            }
+
+            // 정규화
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    kernel[y][x] /= sum;
+                }
+            }
+
+            return kernel;
+        }
+
+        // 가우시안 필터 적용
+        function applyGaussianFilter() {
+            currentKernel = createGaussianKernel(currentSigma);
+            const kernelSize = currentKernel.length;
+            const halfSize = Math.floor(kernelSize / 2);
+
+            const width = originalCanvas.width;
+            const height = originalCanvas.height;
+            const input = originalImageData.data;
+            const output = new Uint8ClampedArray(input.length);
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let r = 0, g = 0, b = 0;
+
+                    for (let ky = 0; ky < kernelSize; ky++) {
+                        for (let kx = 0; kx < kernelSize; kx++) {
+                            const px = Math.min(Math.max(x + kx - halfSize, 0), width - 1);
+                            const py = Math.min(Math.max(y + ky - halfSize, 0), height - 1);
+                            const idx = (py * width + px) * 4;
+                            const weight = currentKernel[ky][kx];
+
+                            r += input[idx] * weight;
+                            g += input[idx + 1] * weight;
+                            b += input[idx + 2] * weight;
+                        }
+                    }
+
+                    const idx = (y * width + x) * 4;
+                    output[idx] = r;
+                    output[idx + 1] = g;
+                    output[idx + 2] = b;
+                    output[idx + 3] = 255;
+                }
+            }
+
+            filteredImageData = new ImageData(output, width, height);
+            filteredCtx.putImageData(filteredImageData, 0, 0);
+        }
+
+        // 확대 뷰 그리기
+        function showMagnifiedView(x, y) {
+            magnifiedView.style.display = 'block';
+
+            const kernelSize = currentKernel.length;
+            const halfSize = Math.floor(kernelSize / 2);
+            const width = originalCanvas.width;
+            const height = originalCanvas.height;
+
+            // 확대 영역 크기
+            const viewSize = Math.min(kernelSize, 15); // 최대 15x15
+            const scale = 20; // 각 픽셀을 20x20으로 확대
+
+            magnifiedCanvas.width = viewSize * scale;
+            magnifiedCanvas.height = viewSize * scale;
+
+            // 확대된 이미지 그리기
+            const input = originalImageData.data;
+            for (let dy = 0; dy < viewSize; dy++) {
+                for (let dx = 0; dx < viewSize; dx++) {
+                    const px = Math.min(Math.max(x + dx - Math.floor(viewSize / 2), 0), width - 1);
+                    const py = Math.min(Math.max(y + dy - Math.floor(viewSize / 2), 0), height - 1);
+                    const idx = (py * width + px) * 4;
+
+                    magnifiedCtx.fillStyle = `rgb(${input[idx]}, ${input[idx + 1]}, ${input[idx + 2]})`;
+                    magnifiedCtx.fillRect(dx * scale, dy * scale, scale, scale);
+
+                    // 그리드 선
+                    magnifiedCtx.strokeStyle = '#ccc';
+                    magnifiedCtx.lineWidth = 1;
+                    magnifiedCtx.strokeRect(dx * scale, dy * scale, scale, scale);
+                }
+            }
+
+            // 중심 픽셀 강조
+            const centerX = Math.floor(viewSize / 2) * scale;
+            const centerY = Math.floor(viewSize / 2) * scale;
+            magnifiedCtx.strokeStyle = '#667eea';
+            magnifiedCtx.lineWidth = 3;
+            magnifiedCtx.strokeRect(centerX, centerY, scale, scale);
+
+            // 가중치 그리드 표시
+            displayWeightGrid(x, y, viewSize);
+
+            // 픽셀 정보 표시
+            displayPixelInfo(x, y);
+        }
+
+        // 가중치 그리드 표시
+        function displayWeightGrid(x, y, viewSize) {
+            const kernelSize = currentKernel.length;
+            const halfKernel = Math.floor(kernelSize / 2);
+            const halfView = Math.floor(viewSize / 2);
+
+            let html = '<div class="weight-grid" style="grid-template-columns: repeat(' + viewSize + ', 1fr);">';
+
+            for (let dy = 0; dy < viewSize; dy++) {
+                for (let dx = 0; dx < viewSize; dx++) {
+                    const kx = dx - halfView + halfKernel;
+                    const ky = dy - halfView + halfKernel;
+
+                    let weight = 0;
+                    let cellClass = 'weight-cell';
+
+                    if (kx >= 0 && kx < kernelSize && ky >= 0 && ky < kernelSize) {
+                        weight = currentKernel[ky][kx];
+                    }
+
+                    if (dx === halfView && dy === halfView) {
+                        cellClass += ' center';
+                    }
+
+                    const percentage = (weight * 100).toFixed(1);
+                    html += `<div class="${cellClass}">${percentage}%</div>`;
+                }
+            }
+
+            html += '</div>';
+            weightGrid.innerHTML = html;
+        }
+
+        // 픽셀 정보 표시
+        function displayPixelInfo(x, y) {
+            const width = originalCanvas.width;
+            const input = originalImageData.data;
+            const output = filteredImageData.data;
+            const idx = (y * width + x) * 4;
+
+            const beforeR = input[idx];
+            const beforeG = input[idx + 1];
+            const beforeB = input[idx + 2];
+
+            const afterR = Math.round(output[idx]);
+            const afterG = Math.round(output[idx + 1]);
+            const afterB = Math.round(output[idx + 2]);
+
+            beforeRGB.innerHTML = `RGB(${beforeR}, ${beforeG}, ${beforeB})`;
+            afterRGB.innerHTML = `RGB(${afterR}, ${afterG}, ${afterB})`;
+
+            // 계산 과정 표시
+            showCalculation(x, y);
+        }
+
+        // 계산 과정 표시
+        function showCalculation(x, y) {
+            const kernelSize = currentKernel.length;
+            const halfSize = Math.floor(kernelSize / 2);
+            const width = originalCanvas.width;
+            const height = originalCanvas.height;
+            const input = originalImageData.data;
+
+            let rSum = 0, gSum = 0, bSum = 0;
+            let calcSteps = [];
+
+            // 샘플 계산 (모든 픽셀 표시는 너무 길어서 주요 픽셀만)
+            const samplePositions = [
+                [halfSize, halfSize], // 중심
+                [0, 0], // 좌상단
+                [kernelSize - 1, kernelSize - 1], // 우하단
+                [0, kernelSize - 1], // 좌하단
+                [kernelSize - 1, 0] // 우상단
+            ];
+
+            for (let [ky, kx] of samplePositions) {
+                const px = Math.min(Math.max(x + kx - halfSize, 0), width - 1);
+                const py = Math.min(Math.max(y + ky - halfSize, 0), height - 1);
+                const idx = (py * width + px) * 4;
+                const weight = currentKernel[ky][kx];
+
+                const r = input[idx];
+                const g = input[idx + 1];
+                const b = input[idx + 2];
+
+                rSum += r * weight;
+                gSum += g * weight;
+                bSum += b * weight;
+
+                const pos = ky === halfSize && kx === halfSize ? '중심' : `(${kx - halfSize}, ${ky - halfSize})`;
+                calcSteps.push(`${pos}: RGB(${r}, ${g}, ${b}) × ${(weight * 100).toFixed(1)}%`);
+            }
+
+            // 전체 계산
+            for (let ky = 0; ky < kernelSize; ky++) {
+                for (let kx = 0; kx < kernelSize; kx++) {
+                    if (samplePositions.some(([y, x]) => y === ky && x === kx)) continue;
+
+                    const px = Math.min(Math.max(x + kx - halfSize, 0), width - 1);
+                    const py = Math.min(Math.max(y + ky - halfSize, 0), height - 1);
+                    const idx = (py * width + px) * 4;
+                    const weight = currentKernel[ky][kx];
+
+                    rSum += input[idx] * weight;
+                    gSum += input[idx + 1] * weight;
+                    bSum += input[idx + 2] * weight;
+                }
+            }
+
+            calculationBox.innerHTML = `
+                <strong>가중 평균 계산 (샘플):</strong><br>
+                ${calcSteps.join('<br>')}
+                <br>+ (나머지 ${kernelSize * kernelSize - samplePositions.length}개 픽셀...)<br><br>
+                <strong>최종 결과:</strong><br>
+                R = ${Math.round(rSum)}, G = ${Math.round(gSum)}, B = ${Math.round(bSum)}<br>
+                → RGB(${Math.round(rSum)}, ${Math.round(gSum)}, ${Math.round(bSum)})
+            `;
+        }
+
+        // 캔버스 클릭 이벤트
+        function handleCanvasClick(e, canvas) {
+            if (!originalImageData) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+            const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+            showMagnifiedView(x, y);
+        }
+
+        originalCanvas.addEventListener('click', (e) => handleCanvasClick(e, originalCanvas));
+        filteredCanvas.addEventListener('click', (e) => handleCanvasClick(e, filteredCanvas));
+    </script>
+</body>
+</html>
